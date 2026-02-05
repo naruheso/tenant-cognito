@@ -8,8 +8,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "buffer": "^6.0.3",
     "vue": "^3.4.15",
-    "amazon-cognito-identity-js": "^6.3.8"
+    "amazon-cognito-identity-js": "^6.3.8",
+    "@aws-sdk/client-cognito-identity-provider": "^3.500.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.3",

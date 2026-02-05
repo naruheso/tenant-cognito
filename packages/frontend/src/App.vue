@@ -143,17 +143,36 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from 'amazon-cognito-identity-js';
+import { CognitoIdentityProviderClient, InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider';
 
 // Cognito configuration for local emulator
 // IMPORTANT: Replace these placeholder IDs with actual values from setup-cognito.sh output
 // Or use environment variables (see .env.example)
-const poolData = {
-  UserPoolId: 'local_xxxxxxxx',  // Replace with actual User Pool ID
-  ClientId: 'local_yyyyyyyy'     // Replace with actual Client ID
+const defaultCognitoEndpoint = 'http://localhost:9229/';
+const envCognitoEndpoint = import.meta.env.VITE_COGNITO_ENDPOINT;
+
+const resolveCognitoEndpoint = (): string => {
+  if (envCognitoEndpoint) return envCognitoEndpoint;
+  if (typeof window === 'undefined') return defaultCognitoEndpoint;
+
+  return `${window.location.origin}/cognito/`;
 };
 
-const userPool = new CognitoUserPool(poolData);
+const poolData = {
+  UserPoolId: 'local_4hsUDavD',  // Replace with actual User Pool ID
+  ClientId: '403vdnsd1akvnq4p5kzzhfbnx',     // Replace with actual Client ID
+  endpoint: resolveCognitoEndpoint()
+};
+
+// Initialize Cognito client
+const cognitoClient = new CognitoIdentityProviderClient({
+  region: 'local',
+  endpoint: poolData.endpoint,
+  credentials: {
+    accessKeyId: 'local',
+    secretAccessKey: 'local'
+  }
+});
 
 // State
 const selectedTenant = ref('');
@@ -187,46 +206,44 @@ const handleLogin = async () => {
   error.value = '';
 
   try {
-    const authenticationDetails = new AuthenticationDetails({
-      Username: email.value,
-      Password: password.value
+    // Use InitiateAuth with USER_PASSWORD_AUTH flow
+    const command = new InitiateAuthCommand({
+      ClientId: poolData.ClientId,
+      AuthFlow: 'USER_PASSWORD_AUTH',
+      AuthParameters: {
+        USERNAME: email.value,
+        PASSWORD: password.value
+      },
+      ClientMetadata: {
+        tenant_id: selectedTenant.value
+      }
     });
 
-    const userData = {
-      Username: email.value,
-      Pool: userPool
+    const response = await cognitoClient.send(command);
+    
+    // Get tokens from response
+    const idTokenValue = response.AuthenticationResult?.IdToken;
+    
+    if (!idTokenValue) {
+      throw new Error('No ID token received from authentication');
+    }
+
+    // Parse token payload
+    const parts = idTokenValue.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Invalid token format');
+    }
+
+    const payload = JSON.parse(atob(parts[1]));
+
+    idToken.value = idTokenValue;
+    userInfo.value = {
+      email: payload.email,
+      tenantId: payload['custom:tenant_id'],
+      sub: payload.sub
     };
 
-    const cognitoUser = new CognitoUser(userData);
-
-    // Pass tenant_id as client metadata for Post Authentication Lambda
-    const clientMetadata = {
-      tenant_id: selectedTenant.value
-    };
-
-    await new Promise<void>((resolve, reject) => {
-      cognitoUser.authenticateUser(authenticationDetails, {
-        onSuccess: (session: CognitoUserSession) => {
-          const token = session.getIdToken().getJwtToken();
-          const payload = session.getIdToken().payload;
-
-          idToken.value = token;
-          userInfo.value = {
-            email: payload.email,
-            tenantId: payload['custom:tenant_id'],
-            sub: payload.sub
-          };
-
-          isAuthenticated.value = true;
-          resolve();
-        },
-        onFailure: (err) => {
-          error.value = err.message || 'ログインに失敗しました / Login failed';
-          reject(err);
-        },
-        clientMetadata
-      });
-    });
+    isAuthenticated.value = true;
   } catch (err: any) {
     console.error('Login error:', err);
     error.value = err.message || 'ログインに失敗しました / Login failed';
@@ -236,11 +253,6 @@ const handleLogin = async () => {
 };
 
 const handleLogout = () => {
-  const cognitoUser = userPool.getCurrentUser();
-  if (cognitoUser) {
-    cognitoUser.signOut();
-  }
-  
   isAuthenticated.value = false;
   userInfo.value = {};
   idToken.value = '';

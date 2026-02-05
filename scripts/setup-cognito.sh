@@ -26,6 +26,7 @@ CLIENT_OUTPUT=$(aws cognito-idp create-user-pool-client \
   --user-pool-id $USER_POOL_ID \
   --client-name TenantDemoClient \
   --no-generate-secret \
+  --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH \
   --endpoint-url $COGNITO_ENDPOINT \
   --region local \
   --output json)
