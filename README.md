@@ -1,0 +1,2 @@
+# tenant-cognito
+cognitoの認証のテストをローカル環境デモ実行できるか検証する
