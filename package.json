@@ -1,0 +1,21 @@
+{
+  "name": "tenant-cognito",
+  "version": "1.0.0",
+  "description": "Multi-tenant authentication verification with Vue, Hono, and local Cognito",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run cognito\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "cognito": "npm run start --workspace=cognito-local",
+    "build": "npm run build --workspaces",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

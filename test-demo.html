@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Tenant Auth Demo - Test Flow</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .test-case {
+            margin: 15px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .success {
+            border-left: 4px solid #10b981;
+        }
+        .fail {
+            border-left: 4px solid #ef4444;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .result.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .result.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .flow-diagram {
+            background: #1e293b;
+            color: #10b981;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        .badge.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .badge.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Multi-Tenant Authentication - Test Flow</h1>
+        
+        <div class="test-section">
+            <h2>Backend API Tests</h2>
+            
+            <div class="test-case">
+                <h3>Test 1: Health Check <span class="badge success">GET</span></h3>
+                <button onclick="testHealthCheck()">Run Test</button>
+                <div id="health-result"></div>
+            </div>
+            
+            <div class="test-case">
+                <h3>Test 2: Get Tenant List <span class="badge success">GET</span></h3>
+                <button onclick="testTenantList()">Run Test</button>
+                <div id="tenant-list-result"></div>
+            </div>
+            
+            <div class="test-case success">
+                <h3>Test 3: Valid Tenant-User Verification <span class="badge success">POST</span></h3>
+                <p>User: user1@example.com, Tenant: company-a</p>
+                <button onclick="testValidTenantUser()">Run Test (Should Succeed)</button>
+                <div id="valid-tenant-result"></div>
+            </div>
+            
+            <div class="test-case fail">
+                <h3>Test 4: Invalid Tenant-User Verification <span class="badge error">POST</span></h3>
+                <p>User: user1@example.com, Tenant: company-b (wrong tenant!)</p>
+                <button onclick="testInvalidTenantUser()">Run Test (Should Fail)</button>
+                <div id="invalid-tenant-result"></div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Authentication Flow Demonstration</h2>
+            
+            <div class="flow-diagram">
+┌─────────────────────────────────────────────────────────────┐
+│ SCENARIO 1: Valid Login (user1@example.com → company-a)   │
+└─────────────────────────────────────────────────────────────┘
+
+1. Frontend: User selects "company-a" and enters credentials
+   ↓
+2. Cognito: Validates password ✓
+   ↓
+3. Post Auth Lambda:
+   - Checks if user1@example.com belongs to company-a
+   - Result: ✓ User belongs to tenant
+   - Adds custom:tenant_id = "company-a" to token
+   ↓
+4. Token Generated:
+   {
+     "email": "user1@example.com",
+     "custom:tenant_id": "company-a"  ← Injected claim
+   }
+   ↓
+5. Backend: Reads custom:tenant_id from token
+   - Serves company-a data
+   - Result: ✓ Success
+
+┌─────────────────────────────────────────────────────────────┐
+│ SCENARIO 2: Invalid Login (user1@example.com → company-b) │
+└─────────────────────────────────────────────────────────────┘
+
+1. Frontend: User selects "company-b" and enters credentials
+   ↓
+2. Cognito: Validates password ✓
+   ↓
+3. Post Auth Lambda:
+   - Checks if user1@example.com belongs to company-b
+   - Result: ✗ User does NOT belong to tenant
+   - Throws error: "Not authorized for tenant"
+   ↓
+4. Cognito: Rejects authentication ✗
+   ↓
+5. Frontend: Receives error
+   - No token generated
+   - Result: ✗ Authentication Failed
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Test All Tenant Combinations</h2>
+            <button onclick="testAllCombinations()">Run All Combinations</button>
+            <div id="combinations-result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+
+        async function testHealthCheck() {
+            const resultDiv = document.getElementById('health-result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                resultDiv.innerHTML = `<div class="result success">✓ Success\n${JSON.stringify(data, null, 2)}</div>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">✗ Error\n${error.message}</div>`;
+            }
+        }
+
+        async function testTenantList() {
+            const resultDiv = document.getElementById('tenant-list-result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/tenants`);
+                const data = await response.json();
+                resultDiv.innerHTML = `<div class="result success">✓ Success\n${JSON.stringify(data, null, 2)}</div>`;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">✗ Error\n${error.message}</div>`;
+            }
+        }
+
+        async function testValidTenantUser() {
+            const resultDiv = document.getElementById('valid-tenant-result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/verify-tenant-user`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tenantId: 'company-a',
+                        email: 'user1@example.com'
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.valid) {
+                    resultDiv.innerHTML = `<div class="result success">✓ Success - User belongs to tenant\n${JSON.stringify(data, null, 2)}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">✗ Unexpected - Should be valid\n${JSON.stringify(data, null, 2)}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">✗ Error\n${error.message}</div>`;
+            }
+        }
+
+        async function testInvalidTenantUser() {
+            const resultDiv = document.getElementById('invalid-tenant-result');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/verify-tenant-user`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tenantId: 'company-b',
+                        email: 'user1@example.com'
+                    })
+                });
+                const data = await response.json();
+                
+                if (!data.valid) {
+                    resultDiv.innerHTML = `<div class="result success">✓ Success - Correctly rejected (tenant isolation working)\n${JSON.stringify(data, null, 2)}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">✗ Security Issue - Should be rejected!\n${JSON.stringify(data, null, 2)}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">✗ Error\n${error.message}</div>`;
+            }
+        }
+
+        async function testAllCombinations() {
+            const resultDiv = document.getElementById('combinations-result');
+            resultDiv.innerHTML = '<p>Testing all tenant-user combinations...</p>';
+            
+            const users = [
+                { email: 'user1@example.com', tenant: 'company-a' },
+                { email: 'admin@company-a.com', tenant: 'company-a' },
+                { email: 'user2@example.com', tenant: 'company-b' },
+                { email: 'admin@company-b.com', tenant: 'company-b' },
+                { email: 'user3@example.com', tenant: 'company-c' },
+                { email: 'admin@company-c.com', tenant: 'company-c' }
+            ];
+            
+            const tenants = ['company-a', 'company-b', 'company-c'];
+            
+            let results = '<div class="result">';
+            
+            for (const user of users) {
+                for (const tenant of tenants) {
+                    try {
+                        const response = await fetch(`${API_BASE}/api/verify-tenant-user`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                tenantId: tenant,
+                                email: user.email
+                            })
+                        });
+                        const data = await response.json();
+                        
+                        const expected = user.tenant === tenant;
+                        const icon = (data.valid === expected) ? '✓' : '✗';
+                        const status = (data.valid === expected) ? 'PASS' : 'FAIL';
+                        
+                        results += `${icon} ${status}: ${user.email} → ${tenant} (expected: ${expected ? 'valid' : 'invalid'}, got: ${data.valid ? 'valid' : 'invalid'})\n`;
+                    } catch (error) {
+                        results += `✗ ERROR: ${user.email} → ${tenant}: ${error.message}\n`;
+                    }
+                }
+            }
+            
+            results += '</div>';
+            resultDiv.innerHTML = results;
+        }
+    </script>
+</body>
+</html>
