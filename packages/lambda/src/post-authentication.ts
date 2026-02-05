@@ -63,9 +63,11 @@ export const handler: PostAuthenticationTriggerHandler = async (event) => {
 
     // 2. CLAIMS INJECTION
     // Add custom:tenant_id to ID token claims
-    event.response.claimsOverrideDetails = {
-      claimsToAddOrOverride: {
-        'custom:tenant_id': tenantId
+    event.response = {
+      claimsOverrideDetails: {
+        claimsToAddOrOverride: {
+          'custom:tenant_id': tenantId
+        }
       }
     };
 
