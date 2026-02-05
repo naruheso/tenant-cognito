@@ -2,7 +2,12 @@
 
 このガイドでは、最小限のステップでマルチテナント認証システムを起動する方法を説明します。
 
-## 🚀 クイックスタート (5分)
+> ⚠️ **"Invalid password" エラーが出る場合**
+> 
+> Cognito User Poolの設定が必要です。下記のステップを順番に実行してください。
+> 詳細なトラブルシューティングは [TROUBLESHOOTING.md](TROUBLESHOOTING.md) を参照。
+
+## 🚀 クイックスタート (10分)
 
 ### 1. セットアップ
 
@@ -15,9 +20,63 @@ cd tenant-cognito
 ./setup.sh
 ```
 
-### 2. システムの起動
+### 2. Cognito User Poolの作成（⚠️ 必須）
 
-#### オプションA: 完全なローカル環境（推奨）
+**ログイン機能を使用するには、このステップが必須です。**
+
+```bash
+# 1. Dockerでcognito-localを起動
+docker-compose up -d
+
+# 2. 数秒待つ（エミュレーターの起動を待つ）
+sleep 5
+
+# 3. User Poolとテストユーザーを作成
+./scripts/setup-cognito.sh
+```
+
+スクリプトの出力例：
+```
+✅ User Pool created: local_abc123xyz
+✅ Client created: local_def456uvw
+
+Update packages/frontend/src/App.vue with these IDs:
+  UserPoolId: 'local_abc123xyz'
+  ClientId: 'local_def456uvw'
+```
+
+### 3. フロントエンドの設定を更新（⚠️ 必須）
+
+上記で出力されたIDを使用して、フロントエンドの設定を更新します。
+
+```bash
+# エディタでファイルを開く
+nano packages/frontend/src/App.vue
+# または
+code packages/frontend/src/App.vue
+```
+
+148-154行目付近を編集：
+
+```typescript
+// 変更前
+const poolData = {
+  UserPoolId: 'local_xxxxxxxx',  // Replace with actual User Pool ID
+  ClientId: 'local_yyyyyyyy'     // Replace with actual Client ID
+};
+
+// 変更後（setup-cognito.shの出力から取得したIDを使用）
+const poolData = {
+  UserPoolId: 'local_abc123xyz',  // ← ここを実際のIDに変更
+  ClientId: 'local_def456uvw'     // ← ここを実際のIDに変更
+};
+```
+
+ファイルを保存してください。
+
+### 4. システムの起動### 4. システムの起動
+
+#### オプションA: 個別起動（推奨）
 
 ```bash
 # ターミナル1: バックエンド
@@ -31,30 +90,67 @@ npm run dev
 
 フロントエンドが http://localhost:3000 で起動します。
 
-#### オプションB: すべて一度に起動
+#### オプションB: 一括起動
 
 ```bash
 npm run dev
 ```
 
-**注意**: cognito-localを使用するには、別途User Poolの設定が必要です（ステップ3参照）。
+これで以下が起動します：
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:3001
+- Cognito Local: http://localhost:9229 (既に起動済み)
 
-### 3. Cognito User Poolの設定（オプション）
+### 5. ログインをテスト
 
-実際のCognito機能を使用する場合：
+1. ブラウザで http://localhost:3000 を開く
+2. テナントを選択（例: Company A）
+3. ログイン情報を入力：
+   - メール: `user1@example.com`
+   - パスワード: `Password123!`
+4. 「ログイン / Login」ボタンをクリック
 
-```bash
-# Dockerでcognito-localを起動
-docker-compose up -d
+✅ 成功すると、ユーザー情報とIDトークン（custom:tenant_id付き）が表示されます！
 
-# User PoolとUser Clientを作成
-./scripts/setup-cognito.sh
+---
 
-# スクリプトの出力からUser Pool IDとClient IDをコピー
-# packages/frontend/src/App.vue を更新
-```
+## ❌ "Invalid password" エラーが出る場合
 
-## 🧪 テスト方法
+このエラーは、Cognito User Poolが正しく設定されていないことを示しています。
+
+### チェックリスト
+
+1. ✅ Docker Desktopが起動していますか？
+   ```bash
+   docker ps
+   ```
+
+2. ✅ cognito-localが起動していますか？
+   ```bash
+   curl http://localhost:9229
+   ```
+
+3. ✅ setup-cognito.shを実行しましたか？
+   ```bash
+   ./scripts/setup-cognito.sh
+   ```
+
+4. ✅ packages/frontend/src/App.vueのUser Pool IDとClient IDを更新しましたか？
+   - 148-154行目を確認
+   - プレースホルダー(`local_xxxxxxxx`)のままになっていませんか？
+
+5. ✅ フロントエンドを再起動しましたか？
+   - ファイルを編集した後、npm run devを再実行
+
+### 詳しいトラブルシューティング
+
+問題が解決しない場合は、[TROUBLESHOOTING.md](TROUBLESHOOTING.md) を参照してください。
+
+完全なステップバイステップの手順と、よくある問題の解決方法が記載されています。
+
+---
+
+## 🧪 テスト方法 (セットアップ完了後)
 
 ### 1. バックエンドAPIのテスト
 

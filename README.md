@@ -81,37 +81,60 @@ npm run build
 
 ## 🎮 実行方法 / How to Run
 
-### オプション1: ローカルで全て実行
+> ⚠️ **重要**: ログイン機能を使用するには、まず Cognito User Pool の設定が必要です。
+> 下記の「🧪 テスト方法」セクションを先に実行してください。
+> 
+> ❌ User Pool未設定の場合、"Invalid password" エラーが発生します。
+> ✅ 詳しくは [TROUBLESHOOTING.md](TROUBLESHOOTING.md) をご覧ください。
+
+### ステップ1: Cognito User Poolのセットアップ（初回のみ必須）
 
 ```bash
-# 全てのサービスを起動（Cognito emulator, Backend, Frontend）
+# 1. Dockerでcognito-localを起動
+docker-compose up -d
+
+# 2. User Poolとテストユーザーを作成
+./scripts/setup-cognito.sh
+
+# 3. 出力されたUser Pool IDとClient IDをコピー
+# 例: UserPoolId: 'local_abc123xyz'
+#     ClientId: 'local_def456uvw'
+
+# 4. packages/frontend/src/App.vueを編集し、IDを更新
+# 148-154行目付近の設定を更新してください
+```
+
+### ステップ2: サービスの起動
+
+#### オプションA: 個別起動（推奨・デバッグしやすい）
+
+```bash
+# ターミナル1: バックエンド
+cd packages/backend
+npm run dev
+
+# ターミナル2: フロントエンド
+cd packages/frontend
 npm run dev
 ```
 
-これにより以下が起動します：
+#### オプションB: 一括起動
+
+```bash
+# すべてのサービスを起動（Cognito emulator, Backend, Frontend）
+npm run dev
+```
+
+起動後のアクセスポイント：
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3001
 - Cognito Local: http://localhost:9229
 
-### オプション2: Dockerでcognito-localを実行
-
-```bash
-# Cognito emulatorをDockerで起動
-npm run docker:up
-
-# Lambdaをビルド
-cd packages/lambda && npm run build && cd ../..
-
-# BackendとFrontendを起動
-npm run dev:backend &
-npm run dev:frontend
-```
-
 ## 🧪 テスト方法 / How to Test
 
-### 1. Cognito User Poolの設定
+### ⚠️ 必須: Cognito User Poolの初期設定
 
-実際のCognito機能をテストするには、User Poolとユーザーを作成する必要があります。
+**ログイン機能を使用する前に、必ずこの設定を完了してください。**
 
 #### オプションA: 自動セットアップスクリプトを使用（推奨）
 
