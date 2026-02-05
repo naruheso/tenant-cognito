@@ -1,0 +1,12 @@
+{
+  "name": "cognito-local",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "cognito-local",
+    "setup": "node setup.js"
+  },
+  "dependencies": {
+    "cognito-local": "^3.11.1"
+  }
+}

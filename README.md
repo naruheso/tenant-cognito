@@ -1,2 +1,264 @@
 # tenant-cognito
-cognitoの認証のテストをローカル環境デモ実行できるか検証する
+
+マルチテナント認証検証環境 / Multi-Tenant Authentication Verification Environment
+
+Vue(TS) + Hono(TS) + ローカルCognitoエミュレータを使用した、マルチテナント認証の検証環境です。
+
+## 🎯 核心要件 / Core Requirements
+
+Post Authentication Lambdaトリガーを実装し、ログイン直後に以下を実行します：
+
+1. **テナント検証**: アクセス元のサブドメイン（会社）にユーザーが所属しているかDBと照合し、不一致なら認証を拒否
+2. **クレーム注入**: 検証成功時、IDトークンに `custom:tenant_id` を追加
+
+これにより、バックエンドがトークンのみでテナントを識別・分離できるアーキテクチャを実装しています。
+
+## 🏗️ アーキテクチャ / Architecture
+
+```
+┌─────────────┐
+│   Vue (TS)  │  Frontend - テナント選択とCognito認証
+│   Frontend  │
+└──────┬──────┘
+       │
+       ├─ Login with tenant_id (clientMetadata)
+       │
+       ▼
+┌─────────────────────────┐
+│  Cognito Local Emulator │
+│  ┌───────────────────┐  │
+│  │ Post Auth Lambda  │  │  1. テナント検証
+│  │   Trigger         │  │  2. クレーム注入 (custom:tenant_id)
+│  └───────────────────┘  │
+└───────────┬─────────────┘
+            │
+            ├─ ID Token with custom:tenant_id
+            │
+            ▼
+┌─────────────────────────┐
+│     Hono (TS) API       │  JWT検証とテナント分離
+│     Backend             │
+└─────────────────────────┘
+```
+
+## 📦 プロジェクト構成 / Project Structure
+
+```
+tenant-cognito/
+├── packages/
+│   ├── frontend/          # Vue 3 + TypeScript フロントエンド
+│   ├── backend/           # Hono + TypeScript バックエンドAPI
+│   ├── lambda/            # Post Authentication Lambda トリガー
+│   └── cognito-local/     # Cognito ローカルエミュレータ設定
+├── docker-compose.yml     # Cognito エミュレータのDocker設定
+└── package.json           # ルートパッケージ（ワークスペース管理）
+```
+
+## 🚀 セットアップ / Setup
+
+### 前提条件 / Prerequisites
+
+- Node.js 18+ 
+- npm 9+
+- Docker & Docker Compose (オプション)
+
+### インストール / Installation
+
+```bash
+# 依存関係のインストール
+npm install
+
+# 各パッケージの依存関係をインストール
+npm install --workspaces
+```
+
+### Lambda関数のビルド / Build Lambda Functions
+
+```bash
+cd packages/lambda
+npm run build
+```
+
+## 🎮 実行方法 / How to Run
+
+### オプション1: ローカルで全て実行
+
+```bash
+# 全てのサービスを起動（Cognito emulator, Backend, Frontend）
+npm run dev
+```
+
+これにより以下が起動します：
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:3001
+- Cognito Local: http://localhost:9229
+
+### オプション2: Dockerでcognito-localを実行
+
+```bash
+# Cognito emulatorをDockerで起動
+npm run docker:up
+
+# Lambdaをビルド
+cd packages/lambda && npm run build && cd ../..
+
+# BackendとFrontendを起動
+npm run dev:backend &
+npm run dev:frontend
+```
+
+## 🧪 テスト方法 / How to Test
+
+### 1. Cognito User Poolの作成
+
+cognito-localは初回起動時に自動的にUser Poolを作成しますが、手動で作成する場合：
+
+**注意**: 実際のcognito-localの使用には、AWS CLIを使用してUser Poolとユーザーを作成する必要があります。
+
+```bash
+# AWS CLIをローカルCognitoエミュレータに向ける
+export AWS_ACCESS_KEY_ID=local
+export AWS_SECRET_ACCESS_KEY=local
+
+# User Pool作成
+aws cognito-idp create-user-pool \
+  --pool-name TestPool \
+  --endpoint-url http://localhost:9229 \
+  --region local
+
+# User Pool Client作成
+aws cognito-idp create-user-pool-client \
+  --user-pool-id <YOUR_POOL_ID> \
+  --client-name TestClient \
+  --endpoint-url http://localhost:9229 \
+  --region local
+```
+
+### 2. テストユーザーの作成
+
+各テナント用のテストユーザーを作成します：
+
+```bash
+# Company Aのユーザー
+aws cognito-idp admin-create-user \
+  --user-pool-id <YOUR_POOL_ID> \
+  --username user1@example.com \
+  --user-attributes Name=email,Value=user1@example.com Name=email_verified,Value=true \
+  --endpoint-url http://localhost:9229 \
+  --region local
+
+aws cognito-idp admin-set-user-password \
+  --user-pool-id <YOUR_POOL_ID> \
+  --username user1@example.com \
+  --password Password123! \
+  --permanent \
+  --endpoint-url http://localhost:9229 \
+  --region local
+```
+
+### 3. UIでのテスト
+
+1. ブラウザで http://localhost:3000 を開く
+2. テナントを選択（Company A, B, または C）
+3. テストユーザーでログイン：
+   - **Company A**: user1@example.com / admin@company-a.com
+   - **Company B**: user2@example.com / admin@company-b.com
+   - **Company C**: user3@example.com / admin@company-c.com
+   - パスワード: `Password123!`
+
+### 4. テナント分離の検証
+
+異なるテナントのユーザーでログインを試みることで、Post Authentication Lambdaの動作を確認できます：
+
+✅ **成功ケース**: Company Aのユーザーが Company Aを選択してログイン
+❌ **失敗ケース**: Company Aのユーザーが Company Bを選択してログイン（認証拒否）
+
+## 🔑 Post Authentication Lambda の動作
+
+`packages/lambda/src/post-authentication.ts`
+
+### 1. テナント検証
+
+```typescript
+// クライアントメタデータからテナントIDを取得
+const tenantId = event.request.clientMetadata?.tenant_id;
+
+// データベースでテナントとユーザーの関係を確認
+const tenant = tenantDatabase[tenantId];
+const userBelongsToTenant = tenant.users.includes(userEmail);
+
+// ユーザーがテナントに所属していない場合、エラーをthrowして認証を拒否
+if (!userBelongsToTenant) {
+  throw new Error(`User ${userEmail} is not authorized for tenant ${tenantId}`);
+}
+```
+
+### 2. クレーム注入
+
+```typescript
+// IDトークンにカスタムクレームを追加
+event.response.claimsOverrideDetails = {
+  claimsToAddOrOverride: {
+    'custom:tenant_id': tenantId
+  }
+};
+```
+
+### 3. バックエンドでの利用
+
+バックエンド（Hono）はJWTトークンから `custom:tenant_id` を読み取り、テナントを識別します：
+
+```typescript
+const decoded = jwt.decode(token);
+const tenantId = decoded['custom:tenant_id'];
+// テナント固有のデータアクセス
+```
+
+## 🔒 セキュリティ機能
+
+- ✅ JWT署名検証（本番環境ではCognitoの公開鍵を使用）
+- ✅ テナント分離（DBレベルでの検証）
+- ✅ 認証拒否メカニズム（Lambda trigger内）
+- ✅ CORS設定（サブドメイン対応）
+
+## 📝 テナントデータベース
+
+現在は開発用のインメモリデータベースを使用しています：
+
+```typescript
+const tenantDatabase = {
+  'company-a': {
+    users: ['user1@example.com', 'admin@company-a.com']
+  },
+  'company-b': {
+    users: ['user2@example.com', 'admin@company-b.com']
+  },
+  'company-c': {
+    users: ['user3@example.com', 'admin@company-c.com']
+  }
+};
+```
+
+本番環境では、DynamoDB、RDS、またはその他のデータベースを使用してください。
+
+## 🛠️ 技術スタック
+
+- **Frontend**: Vue 3, TypeScript, Vite, Amazon Cognito Identity JS
+- **Backend**: Hono, TypeScript, Node.js
+- **Auth**: Cognito Local Emulator, Lambda Triggers
+- **Dev Tools**: tsx, vite, concurrently
+
+## 📚 参考資料 / References
+
+- [Amazon Cognito Post Authentication Lambda Trigger](https://docs.aws.amazon.com/cognito/latest/developerguide/user-pool-lambda-post-authentication.html)
+- [Hono Documentation](https://hono.dev/)
+- [Vue 3 Documentation](https://vuejs.org/)
+- [Cognito Local](https://github.com/jagregory/cognito-local)
+
+## 🤝 貢献 / Contributing
+
+プルリクエストを歓迎します。大きな変更の場合は、まずissueを開いて変更内容を議論してください。
+
+## 📄 ライセンス / License
+
+MIT
