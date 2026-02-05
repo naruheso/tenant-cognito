@@ -3,7 +3,12 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import jwt from 'jsonwebtoken';
 
-const app = new Hono();
+// Define custom context type for Hono with user variable
+type Variables = {
+  user: any;
+};
+
+const app = new Hono<{ Variables: Variables }>();
 
 // CORS configuration for multi-tenant subdomains
 app.use('*', cors({

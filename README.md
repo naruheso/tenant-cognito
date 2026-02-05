@@ -109,11 +109,26 @@ npm run dev:frontend
 
 ## 🧪 テスト方法 / How to Test
 
-### 1. Cognito User Poolの作成
+### 1. Cognito User Poolの設定
 
-cognito-localは初回起動時に自動的にUser Poolを作成しますが、手動で作成する場合：
+実際のCognito機能をテストするには、User Poolとユーザーを作成する必要があります。
 
-**注意**: 実際のcognito-localの使用には、AWS CLIを使用してUser Poolとユーザーを作成する必要があります。
+#### オプションA: 自動セットアップスクリプトを使用（推奨）
+
+**前提条件**: Dockerでcognito-localが起動していること、AWS CLIがインストールされていること
+
+```bash
+# cognito-localをDockerで起動
+docker-compose up -d
+
+# 自動セットアップスクリプトを実行
+./scripts/setup-cognito.sh
+
+# スクリプトが出力するUser Pool IDとClient IDを
+# packages/frontend/src/App.vue に設定してください
+```
+
+#### オプションB: 手動でUser Poolを作成
 
 ```bash
 # AWS CLIをローカルCognitoエミュレータに向ける

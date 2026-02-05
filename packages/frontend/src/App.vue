@@ -146,9 +146,11 @@ import { ref, computed } from 'vue';
 import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from 'amazon-cognito-identity-js';
 
 // Cognito configuration for local emulator
+// IMPORTANT: Replace these placeholder IDs with actual values from setup-cognito.sh output
+// Or use environment variables (see .env.example)
 const poolData = {
-  UserPoolId: 'local_xxxxxxxx',
-  ClientId: 'local_yyyyyyyy'
+  UserPoolId: 'local_xxxxxxxx',  // Replace with actual User Pool ID
+  ClientId: 'local_yyyyyyyy'     // Replace with actual Client ID
 };
 
 const userPool = new CognitoUserPool(poolData);
